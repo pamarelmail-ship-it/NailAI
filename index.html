@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NailAI — AR Demo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.15);
+    --text: #f0eee8;
+    --muted: #888580;
+    --accent: #c9a96e;
+    --accent2: #e8c99a;
+    --pill-h: 52px;
+    --radius: 16px;
+    --font-display: 'DM Serif Display', serif;
+    --font-body: 'Instrument Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    grid-template-rows: 60px 1fr;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  /* Header */
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .logo {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .logo-word {
+    font-family: var(--font-display);
+    font-size: 22px;
+    color: var(--accent2);
+    letter-spacing: -0.02em;
+  }
+  .logo-tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .header-status {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: var(--muted);
+  }
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #555;
+    transition: background 0.3s;
+  }
+  .status-dot.active { background: #4caf82; box-shadow: 0 0 6px #4caf8288; }
+  .status-dot.error { background: #e05a5a; }
+  .status-dot.loading { background: var(--accent); animation: pulse 1s infinite; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Camera area */
+  .camera-area {
+    position: relative;
+    background: #000;
+    overflow: hidden;
+  }
+
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transform: scaleX(-1);
+  }
+
+  canvas#output {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    transform: scaleX(-1);
+    pointer-events: none;
+  }
+
+  canvas#hidden-input {
+    display: none;
+  }
+
+  .camera-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+  }
+
+  /* Corner guides */
+  .guide-corner {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+  }
+  .guide-corner::before, .guide-corner::after {
+    content: '';
+    position: absolute;
+    background: var(--accent);
+    opacity: 0.6;
+  }
+  .guide-corner::before { width: 2px; height: 100%; top: 0; }
+  .guide-corner::after  { width: 100%; height: 2px; top: 0; }
+
+  .gc-tl { top: 28px; left: 28px; }
+  .gc-tr { top: 28px; right: 28px; transform: scaleX(-1); }
+  .gc-bl { bottom: 28px; left: 28px; transform: scaleY(-1); }
+  .gc-br { bottom: 28px; right: 28px; transform: scale(-1); }
+
+  .camera-hint {
+    position: absolute;
+    bottom: 36px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  /* FPS counter */
+  .fps-badge {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 0.05em;
+  }
+
+  /* Sidebar */
+  aside {
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .sidebar-section {
+    padding: 20px 20px 0;
+  }
+  .sidebar-section + .sidebar-section {
+    margin-top: 4px;
+  }
+
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  /* Model loader */
+  .model-drop {
+    border: 1.5px dashed var(--border2);
+    border-radius: var(--radius);
+    padding: 18px 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .model-drop:hover, .model-drop.dragover {
+    border-color: var(--accent);
+    background: rgba(201,169,110,0.05);
+  }
+  .model-drop input[type=file] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+  .drop-icon {
+    font-size: 24px;
+    margin-bottom: 6px;
+    opacity: 0.5;
+  }
+  .drop-text {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .drop-text strong {
+    color: var(--accent2);
+    font-weight: 500;
+  }
+  .drop-hint {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: #444;
+    margin-top: 4px;
+  }
+
+  .model-loaded {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--surface2);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+  .model-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(201,169,110,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .model-info { flex: 1; min-width: 0; }
+  .model-name {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .model-size {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    margin-top: 1px;
+  }
+  .model-remove {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px;
+    line-height: 1;
+    border-radius: 6px;
+    transition: color 0.2s;
+    flex-shrink: 0;
+  }
+  .model-remove:hover { color: #e05a5a; }
+
+  /* Color palette */
+  .palette-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .color-swatch {
+    aspect-ratio: 1;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2.5px solid transparent;
+    transition: transform 0.15s, border-color 0.15s;
+    position: relative;
+  }
+  .color-swatch:hover { transform: scale(1.12); }
+  .color-swatch.active {
+    border-color: var(--text);
+    transform: scale(1.12);
+  }
+  .color-swatch.active::after {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+
+  /* Custom color picker */
+  .custom-color-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .custom-color-row label {
+    font-size: 12px;
+    color: var(--muted);
+    flex: 1;
+  }
+  input[type=color] {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    padding: 0;
+    background: none;
+    overflow: hidden;
+  }
+  input[type=color]::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; }
+  input[type=color]::-webkit-color-swatch { border: none; border-radius: 50%; }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 16px 0;
+  }
+
+  /* Sliders */
+  .slider-row {
+    margin-bottom: 14px;
+  }
+  .slider-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .slider-label {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .slider-val {
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: var(--accent2);
+  }
+  input[type=range] {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    background: var(--surface2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+  /* Toggle */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .toggle-label {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .toggle {
+    width: 36px;
+    height: 20px;
+    background: var(--surface2);
+    border-radius: 10px;
+    border: 1px solid var(--border2);
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle.on { background: var(--accent); border-color: var(--accent); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: white;
+    top: 2px;
+    left: 2px;
+    transition: left 0.2s;
+  }
+  .toggle.on::after { left: 18px; }
+
+  /* Blend mode select */
+  select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+  select:hover { border-color: var(--accent); }
+
+  /* Stats */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .stat-card {
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+  }
+  .stat-name {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .stat-val {
+    font-size: 18px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--text);
+  }
+  .stat-val.accent { color: var(--accent2); }
+
+  /* Start button */
+  .start-btn {
+    display: block;
+    width: calc(100% - 40px);
+    margin: 16px 20px;
+    padding: 14px;
+    background: var(--accent);
+    border: none;
+    border-radius: 12px;
+    color: #1a1208;
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: background 0.2s, transform 0.1s;
+    margin-top: auto;
+  }
+  .start-btn:hover { background: var(--accent2); }
+  .start-btn:active { transform: scale(0.98); }
+  .start-btn:disabled {
+    background: var(--surface2);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  /* Notification toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-family: var(--font-mono);
+    color: var(--text);
+    z-index: 100;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.error { border-color: #e05a5a44; color: #e05a5a; }
+
+  /* Loading overlay for camera */
+  .cam-loader {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    gap: 16px;
+  }
+  .cam-loader-text {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+  .spinner {
+    width: 36px;
+    height: 36px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Scrollbar */
+  aside::-webkit-scrollbar { width: 4px; }
+  aside::-webkit-scrollbar-track { background: transparent; }
+  aside::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* MediaPipe progress */
+  #mp-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.1s;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="logo-word">NailAI</span>
+    <span class="logo-tag">AR Demo</span>
+  </div>
+  <div class="header-status">
+    <div class="status-pill">
+      <div class="status-dot" id="dot-mp"></div>
+      <span id="label-mp">MediaPipe</span>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot" id="dot-onnx"></div>
+      <span id="label-onnx">ONNX</span>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot" id="dot-cam"></div>
+      <span id="label-cam">Camera</span>
+    </div>
+  </div>
+</header>
+
+<div class="camera-area">
+  <div class="cam-loader" id="cam-loader">
+    <div class="spinner"></div>
+    <div class="cam-loader-text" id="loader-text">Initializing…</div>
+  </div>
+
+  <video id="video" autoplay muted playsinline></video>
+  <canvas id="output"></canvas>
+  <canvas id="hidden-input"></canvas>
+
+  <div class="camera-overlay">
+    <div class="guide-corner gc-tl"></div>
+    <div class="guide-corner gc-tr"></div>
+    <div class="guide-corner gc-bl"></div>
+    <div class="guide-corner gc-br"></div>
+    <div class="fps-badge" id="fps-badge">— fps</div>
+    <div class="camera-hint" id="camera-hint">Place your hand in frame</div>
+  </div>
+  <div id="mp-progress"></div>
+</div>
+
+<aside>
+  <div class="sidebar-section">
+    <div class="section-label">Model (ONNX)</div>
+    <div id="model-drop-area" class="model-drop">
+      <input type="file" id="model-file" accept=".onnx">
+      <div class="drop-icon">⬡</div>
+      <div class="drop-text"><strong>Drop .onnx file</strong><br>or click to browse</div>
+      <div class="drop-hint">U-Net nail segmentation</div>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="divider"></div>
+    <div class="section-label">Nail Color</div>
+    <div class="palette-grid" id="palette"></div>
+    <div class="custom-color-row">
+      <label>Custom</label>
+      <input type="color" id="custom-color" value="#ff4466">
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="divider"></div>
+    <div class="section-label">Rendering</div>
+
+    <div class="slider-row">
+      <div class="slider-header">
+        <span class="slider-label">Opacity</span>
+        <span class="slider-val" id="opacity-val">75%</span>
+      </div>
+      <input type="range" id="opacity" min="10" max="100" value="75" step="1">
+    </div>
+
+    <div class="slider-row">
+      <div class="slider-header">
+        <span class="slider-label">Mask threshold</span>
+        <span class="slider-val" id="thresh-val">0.50</span>
+      </div>
+      <input type="range" id="thresh" min="1" max="99" value="50" step="1">
+    </div>
+
+    <div class="slider-row">
+      <div class="slider-header">
+        <span class="slider-label">Edge blur (px)</span>
+        <span class="slider-val" id="blur-val">2</span>
+      </div>
+      <input type="range" id="edge-blur" min="0" max="12" value="2" step="1">
+    </div>
+
+    <div class="toggle-row">
+      <span class="toggle-label">Show landmarks</span>
+      <div class="toggle" id="toggle-landmarks"></div>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">Show mask (debug)</span>
+      <div class="toggle" id="toggle-mask"></div>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">Use MediaPipe ROI</span>
+      <div class="toggle on" id="toggle-roi"></div>
+    </div>
+
+    <div style="margin-bottom: 14px;">
+      <div class="slider-header" style="margin-bottom: 8px;">
+        <span class="slider-label">Blend mode</span>
+      </div>
+      <select id="blend-mode">
+        <option value="source-over">Normal</option>
+        <option value="multiply">Multiply</option>
+        <option value="overlay">Overlay</option>
+        <option value="color">Color</option>
+        <option value="soft-light">Soft light</option>
+        <option value="hard-light">Hard light</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="divider"></div>
+    <div class="section-label">Stats</div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-name">FPS</div>
+        <div class="stat-val accent" id="stat-fps">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-name">Infer ms</div>
+        <div class="stat-val" id="stat-infer">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-name">Nails</div>
+        <div class="stat-val" id="stat-nails">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-name">Hands</div>
+        <div class="stat-val" id="stat-hands">—</div>
+      </div>
+    </div>
+  </div>
+
+  <button class="start-btn" id="start-btn">Start Camera</button>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<!-- ONNX Runtime -->
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+
+<!-- MediaPipe Hands via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+<script>
+// ── Palette ──────────────────────────────────────────────────────────────────
+const COLORS = [
+  { hex: '#ff2255', name: 'Ruby' },
+  { hex: '#ff6699', name: 'Rose' },
+  { hex: '#ffaacc', name: 'Blush' },
+  { hex: '#cc44ff', name: 'Plum' },
+  { hex: '#7744ff', name: 'Violet' },
+  { hex: '#ff6633', name: 'Coral' },
+  { hex: '#ff9933', name: 'Peach' },
+  { hex: '#ffcc22', name: 'Gold' },
+  { hex: '#33ddaa', name: 'Mint' },
+  { hex: '#2299ff', name: 'Sky' },
+  { hex: '#cc2244', name: 'Bordeaux' },
+  { hex: '#2c2c2c', name: 'Noir' },
+];
+
+let currentColor = COLORS[0].hex;
+let onnxSession = null;
+let mpHands = null;
+let handLandmarks = [];
+let running = false;
+let frameCount = 0, lastFpsTime = performance.now();
+let currentFps = 0;
+let showLandmarks = false, showMask = false, useROI = true;
+let modelInputSize = 256; // default, update from model metadata
+
+// ── DOM refs ─────────────────────────────────────────────────────────────────
+const video       = document.getElementById('video');
+const canvas      = document.getElementById('output');
+const ctx         = canvas.getContext('2d');
+const hiddenCanvas = document.getElementById('hidden-input');
+const hiddenCtx   = hiddenCanvas.getContext('2d');
+const startBtn    = document.getElementById('start-btn');
+const modelFile   = document.getElementById('model-file');
+const customColor = document.getElementById('custom-color');
+const opacitySlider  = document.getElementById('opacity');
+const threshSlider   = document.getElementById('thresh');
+const blurSlider     = document.getElementById('edge-blur');
+const blendSel       = document.getElementById('blend-mode');
+const toast          = document.getElementById('toast');
+const camLoader      = document.getElementById('cam-loader');
+const loaderText     = document.getElementById('loader-text');
+const fpsEl          = document.getElementById('fps-badge');
+const statFps        = document.getElementById('stat-fps');
+const statInfer      = document.getElementById('stat-infer');
+const statNails      = document.getElementById('stat-nails');
+const statHands      = document.getElementById('stat-hands');
+
+// ── Palette render ────────────────────────────────────────────────────────────
+function renderPalette() {
+  const grid = document.getElementById('palette');
+  grid.innerHTML = '';
+  COLORS.forEach(c => {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (c.hex === currentColor ? ' active' : '');
+    sw.style.background = c.hex;
+    sw.title = c.name;
+    sw.onclick = () => { currentColor = c.hex; renderPalette(); };
+    grid.appendChild(sw);
+  });
+}
+renderPalette();
+
+customColor.oninput = () => { currentColor = customColor.value; renderPalette(); };
+
+// ── Status dots ───────────────────────────────────────────────────────────────
+function setStatus(id, state) { // 'idle' | 'loading' | 'active' | 'error'
+  const dot = document.getElementById('dot-' + id);
+  dot.className = 'status-dot ' + (state === 'idle' ? '' : state);
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, isError = false) {
+  clearTimeout(toastTimer);
+  toast.textContent = msg;
+  toast.className = 'toast show' + (isError ? ' error' : '');
+  toastTimer = setTimeout(() => { toast.className = 'toast'; }, 3500);
+}
+
+// ── Slider labels ─────────────────────────────────────────────────────────────
+opacitySlider.oninput = () => {
+  document.getElementById('opacity-val').textContent = opacitySlider.value + '%';
+};
+threshSlider.oninput = () => {
+  document.getElementById('thresh-val').textContent = (threshSlider.value / 100).toFixed(2);
+};
+blurSlider.oninput = () => {
+  document.getElementById('blur-val').textContent = blurSlider.value;
+};
+
+// ── Toggles ───────────────────────────────────────────────────────────────────
+function initToggle(id, initVal, cb) {
+  const el = document.getElementById(id);
+  if (initVal) el.classList.add('on');
+  el.onclick = () => {
+    el.classList.toggle('on');
+    cb(el.classList.contains('on'));
+  };
+}
+initToggle('toggle-landmarks', false, v => showLandmarks = v);
+initToggle('toggle-mask', false, v => showMask = v);
+initToggle('toggle-roi', true, v => useROI = v);
+
+// ── Model loading ─────────────────────────────────────────────────────────────
+const dropArea = document.getElementById('model-drop-area');
+
+dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('dragover'); });
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
+dropArea.addEventListener('drop', e => {
+  e.preventDefault();
+  dropArea.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) loadOnnxModel(file);
+});
+
+modelFile.onchange = () => {
+  if (modelFile.files[0]) loadOnnxModel(modelFile.files[0]);
+};
+
+async function loadOnnxModel(file) {
+  setStatus('onnx', 'loading');
+  loaderText.textContent = 'Loading ONNX model…';
+  try {
+    const buf = await file.arrayBuffer();
+    ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
+    onnxSession = await ort.InferenceSession.create(buf, {
+      executionProviders: ['wasm'],
+      graphOptimizationLevel: 'all',
+    });
+
+    // Try to infer input size from model
+    const inputName = onnxSession.inputNames[0];
+    const shape = onnxSession.inputNames; // we'll detect at runtime
+
+    const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+    setStatus('onnx', 'active');
+    showToast(`Model loaded: ${file.name} (${sizeMB} MB)`);
+    renderModelLoaded(file.name, sizeMB);
+    updateStartBtn();
+  } catch (e) {
+    setStatus('onnx', 'error');
+    showToast('Failed to load model: ' + e.message, true);
+    console.error(e);
+  }
+}
+
+function renderModelLoaded(name, sizeMB) {
+  const area = document.getElementById('model-drop-area');
+  area.outerHTML = `
+    <div class="model-loaded" id="model-drop-area">
+      <div class="model-icon">◈</div>
+      <div class="model-info">
+        <div class="model-name">${name}</div>
+        <div class="model-size">${sizeMB} MB · ONNX</div>
+      </div>
+      <button class="model-remove" title="Remove" onclick="removeModel()">✕</button>
+    </div>`;
+}
+
+function removeModel() {
+  onnxSession = null;
+  setStatus('onnx', 'idle');
+  const area = document.getElementById('model-drop-area');
+  area.outerHTML = `
+    <div id="model-drop-area" class="model-drop">
+      <input type="file" id="model-file" accept=".onnx">
+      <div class="drop-icon">⬡</div>
+      <div class="drop-text"><strong>Drop .onnx file</strong><br>or click to browse</div>
+      <div class="drop-hint">U-Net nail segmentation</div>
+    </div>`;
+  document.getElementById('model-file').onchange = () => {
+    const f = document.getElementById('model-file').files[0];
+    if (f) loadOnnxModel(f);
+  };
+  const da = document.getElementById('model-drop-area');
+  da.addEventListener('dragover', e => { e.preventDefault(); da.classList.add('dragover'); });
+  da.addEventListener('dragleave', () => da.classList.remove('dragover'));
+  da.addEventListener('drop', e => { e.preventDefault(); da.classList.remove('dragover'); const f = e.dataTransfer.files[0]; if(f) loadOnnxModel(f); });
+  updateStartBtn();
+}
+
+function updateStartBtn() {
+  startBtn.disabled = false;
+  if (!running) startBtn.textContent = 'Start Camera';
+}
+
+// ── Camera & MediaPipe ────────────────────────────────────────────────────────
+startBtn.onclick = async () => {
+  if (running) return;
+  running = true;
+  startBtn.disabled = true;
+  startBtn.textContent = 'Starting…';
+
+  try {
+    // Camera
+    loaderText.textContent = 'Requesting camera…';
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+      audio: false
+    });
+    video.srcObject = stream;
+    await new Promise(r => video.onloadedmetadata = r);
+    setStatus('cam', 'loading');
+
+    // Canvas size
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    hiddenCanvas.width = modelInputSize;
+    hiddenCanvas.height = modelInputSize;
+
+    // MediaPipe
+    loaderText.textContent = 'Loading MediaPipe Hands…';
+    setStatus('mp', 'loading');
+
+    mpHands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    mpHands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.6,
+    });
+
+    mpHands.onResults(onHandResults);
+    await mpHands.initialize();
+
+    setStatus('mp', 'active');
+    setStatus('cam', 'active');
+    camLoader.style.display = 'none';
+    startBtn.textContent = 'Running…';
+    document.getElementById('camera-hint').style.display = 'none';
+
+    // Main loop
+    requestAnimationFrame(processFrame);
+
+  } catch (e) {
+    running = false;
+    startBtn.disabled = false;
+    startBtn.textContent = 'Start Camera';
+    setStatus('cam', 'error');
+    showToast('Camera error: ' + e.message, true);
+    loaderText.textContent = e.message;
+  }
+};
+
+// ── Hand results callback ─────────────────────────────────────────────────────
+function onHandResults(results) {
+  handLandmarks = results.multiHandLandmarks || [];
+  statHands.textContent = handLandmarks.length;
+}
+
+// ── Nail landmark indices (fingertip = tip of each finger) ────────────────────
+const NAIL_TIPS = [4, 8, 12, 16, 20]; // thumb, index, middle, ring, pinky
+const NAIL_DIP  = [3, 7, 11, 15, 19]; // one joint below tip
+
+// ── Main render loop ──────────────────────────────────────────────────────────
+let lastFrameTime = performance.now();
+
+async function processFrame() {
+  if (!running) return;
+  requestAnimationFrame(processFrame);
+
+  const now = performance.now();
+  const dt = now - lastFrameTime;
+  lastFrameTime = now;
+
+  // FPS
+  frameCount++;
+  if (now - lastFpsTime > 500) {
+    currentFps = Math.round(frameCount / ((now - lastFpsTime) / 1000));
+    frameCount = 0;
+    lastFpsTime = now;
+    fpsEl.textContent = currentFps + ' fps';
+    statFps.textContent = currentFps;
+  }
+
+  // Draw video frame
+  canvas.width = video.videoWidth || canvas.width;
+  canvas.height = video.videoHeight || canvas.height;
+  ctx.save();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Send to MediaPipe (async, non-blocking)
+  if (mpHands) {
+    try { await mpHands.send({ image: video }); } catch(e) {}
+  }
+
+  // Draw landmarks if enabled
+  if (showLandmarks && handLandmarks.length) {
+    handLandmarks.forEach(lm => {
+      drawConnectors(ctx, lm, HAND_CONNECTIONS, { color: 'rgba(255,255,255,0.25)', lineWidth: 1 });
+      drawLandmarks(ctx, lm, { color: 'rgba(201,169,110,0.7)', lineWidth: 1, radius: 3 });
+    });
+  }
+
+  // For each hand, run ONNX on nail regions
+  let nailCount = 0;
+
+  if (onnxSession && handLandmarks.length) {
+    const threshold = threshSlider.value / 100;
+    const opacity   = opacitySlider.value / 100;
+    const edgeBlur  = parseInt(blurSlider.value);
+    const blendMode = blendSel.value;
+
+    for (const landmarks of handLandmarks) {
+      for (let i = 0; i < NAIL_TIPS.length; i++) {
+        const tipIdx = NAIL_TIPS[i];
+        const dipIdx = NAIL_DIP[i];
+
+        const tip = landmarks[tipIdx];
+        const dip = landmarks[dipIdx];
+
+        if (!tip || !dip) continue;
+
+        // Compute ROI around the nail
+        const cx = tip.x * canvas.width;
+        const cy = tip.y * canvas.height;
+        const dx = (tip.x - dip.x) * canvas.width;
+        const dy = (tip.y - dip.y) * canvas.height;
+        const nailLen = Math.sqrt(dx*dx + dy*dy);
+        const roiSize = Math.max(nailLen * 2.8, 40);
+
+        const rx = Math.max(0, Math.round(cx - roiSize / 2));
+        const ry = Math.max(0, Math.round(cy - roiSize / 2));
+        const rw = Math.min(Math.round(roiSize), canvas.width - rx);
+        const rh = Math.min(Math.round(roiSize), canvas.height - ry);
+
+        if (rw < 8 || rh < 8) continue;
+
+        // Infer
+        try {
+          const t0 = performance.now();
+          const mask = await runOnnx(video, rx, ry, rw, rh, threshold);
+          const inferMs = Math.round(performance.now() - t0);
+          if (i === 0) statInfer.textContent = inferMs;
+
+          if (mask) {
+            nailCount++;
+            overlayMask(mask, rx, ry, rw, rh, currentColor, opacity, edgeBlur, blendMode, showMask);
+          }
+        } catch(e) { /* silent */ }
+      }
+    }
+  } else if (onnxSession && handLandmarks.length === 0 && !useROI) {
+    // Full frame inference without MediaPipe
+    try {
+      const t0 = performance.now();
+      const mask = await runOnnx(video, 0, 0, canvas.width, canvas.height, threshSlider.value / 100);
+      statInfer.textContent = Math.round(performance.now() - t0);
+      if (mask) {
+        nailCount = 1;
+        overlayMask(mask, 0, 0, canvas.width, canvas.height, currentColor,
+          opacitySlider.value / 100, parseInt(blurSlider.value), blendSel.value, showMask);
+      }
+    } catch(e) {}
+  }
+
+  statNails.textContent = nailCount || (handLandmarks.length ? '0' : '—');
+  ctx.restore();
+}
+
+// ── ONNX inference ────────────────────────────────────────────────────────────
+async function runOnnx(source, sx, sy, sw, sh, threshold) {
+  const SIZE = modelInputSize;
+
+  // Draw ROI into hidden canvas, resize to model input
+  hiddenCanvas.width = SIZE;
+  hiddenCanvas.height = SIZE;
+  hiddenCtx.drawImage(source, sx, sy, sw, sh, 0, 0, SIZE, SIZE);
+
+  const imageData = hiddenCtx.getImageData(0, 0, SIZE, SIZE);
+  const { data } = imageData;
+
+  // Normalize to [0,1], channels first (NCHW)
+  const input = new Float32Array(3 * SIZE * SIZE);
+  const mean = [0.485, 0.456, 0.406];
+  const std  = [0.229, 0.224, 0.225];
+  for (let i = 0; i < SIZE * SIZE; i++) {
+    input[i]               = (data[i*4]   / 255 - mean[0]) / std[0];
+    input[SIZE*SIZE + i]   = (data[i*4+1] / 255 - mean[1]) / std[1];
+    input[2*SIZE*SIZE + i] = (data[i*4+2] / 255 - mean[2]) / std[2];
+  }
+
+  const inputName = onnxSession.inputNames[0];
+  const tensor = new ort.Tensor('float32', input, [1, 3, SIZE, SIZE]);
+  const feeds = { [inputName]: tensor };
+
+  const results = await onnxSession.run(feeds);
+  const outputName = onnxSession.outputNames[0];
+  const output = results[outputName];
+
+  // output shape: [1, 1, H, W] or [1, H, W] — flatten to 2D
+  const outData = output.data;
+  const outH = output.dims[output.dims.length - 2];
+  const outW = output.dims[output.dims.length - 1];
+
+  // Apply sigmoid if values look like logits
+  const needSigmoid = outData[0] < 0 || outData[0] > 1;
+  const sigmoid = v => 1 / (1 + Math.exp(-v));
+
+  // Build binary mask at original ROI size
+  const maskCanvas = document.createElement('canvas');
+  maskCanvas.width = outW;
+  maskCanvas.height = outH;
+  const maskCtx = maskCanvas.getContext('2d');
+  const maskImg = maskCtx.createImageData(outW, outH);
+
+  let hasNail = false;
+  for (let i = 0; i < outH * outW; i++) {
+    const prob = needSigmoid ? sigmoid(outData[i]) : outData[i];
+    const val = prob > threshold ? 255 : 0;
+    if (val > 0) hasNail = true;
+    maskImg.data[i*4]   = val;
+    maskImg.data[i*4+1] = val;
+    maskImg.data[i*4+2] = val;
+    maskImg.data[i*4+3] = 255;
+  }
+
+  if (!hasNail) return null;
+  maskCtx.putImageData(maskImg, 0, 0);
+  return maskCanvas;
+}
+
+// ── Overlay mask ──────────────────────────────────────────────────────────────
+function overlayMask(maskCanvas, rx, ry, rw, rh, hexColor, opacity, edgeBlur, blendMode, debugMask) {
+  // Parse color
+  const r = parseInt(hexColor.slice(1,3), 16);
+  const g = parseInt(hexColor.slice(3,5), 16);
+  const b = parseInt(hexColor.slice(5,7), 16);
+
+  // Create colored overlay at ROI size
+  const offscreen = document.createElement('canvas');
+  offscreen.width = rw;
+  offscreen.height = rh;
+  const offCtx = offscreen.getContext('2d');
+
+  if (debugMask) {
+    // Show raw mask in grayscale
+    offCtx.drawImage(maskCanvas, 0, 0, rw, rh);
+    ctx.globalAlpha = 0.7;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(offscreen, rx, ry);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    return;
+  }
+
+  // Color the mask
+  offCtx.drawImage(maskCanvas, 0, 0, rw, rh);
+  offCtx.globalCompositeOperation = 'source-in';
+  offCtx.fillStyle = hexColor;
+  offCtx.fillRect(0, 0, rw, rh);
+
+  // Edge softening via blur
+  if (edgeBlur > 0) {
+    offCtx.filter = `blur(${edgeBlur}px)`;
+  }
+
+  // Composite onto main canvas
+  ctx.globalAlpha = opacity;
+  ctx.globalCompositeOperation = blendMode;
+  ctx.drawImage(offscreen, rx, ry);
+
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+// ── Fallback: demo without model ──────────────────────────────────────────────
+// If no ONNX session, just highlight fingertip area as placeholder
+function drawPlaceholderNails() {
+  if (!handLandmarks.length) return;
+  const r = parseInt(currentColor.slice(1,3), 16);
+  const g = parseInt(currentColor.slice(3,5), 16);
+  const b = parseInt(currentColor.slice(5,7), 16);
+  const opacity = opacitySlider.value / 100;
+
+  ctx.globalCompositeOperation = blendSel.value;
+  ctx.globalAlpha = opacity;
+
+  handLandmarks.forEach(landmarks => {
+    NAIL_TIPS.forEach((tipIdx, i) => {
+      const tip = landmarks[tipIdx];
+      const dip = landmarks[NAIL_DIP[i]];
+      if (!tip || !dip) return;
+
+      const cx = tip.x * canvas.width;
+      const cy = tip.y * canvas.height;
+      const dx = (tip.x - dip.x) * canvas.width;
+      const dy = (tip.y - dip.y) * canvas.height;
+      const nailLen = Math.sqrt(dx*dx + dy*dy);
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(Math.atan2(dy, dx) + Math.PI / 2);
+
+      const grd = ctx.createRadialGradient(0, 0, 0, 0, 0, nailLen * 0.8);
+      grd.addColorStop(0, `rgba(${r},${g},${b},1)`);
+      grd.addColorStop(0.7, `rgba(${r},${g},${b},0.8)`);
+      grd.addColorStop(1, `rgba(${r},${g},${b},0)`);
+
+      ctx.beginPath();
+      ctx.ellipse(0, 0, nailLen * 0.32, nailLen * 0.55, 0, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+      ctx.restore();
+    });
+  });
+
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+// Patch processFrame to use placeholder when no model
+const _origProcessFrame = processFrame;
+// Override nail overlay section to fallback to ellipses
+// (already handled by the conditional in processFrame)
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'l') document.getElementById('toggle-landmarks').click();
+  if (e.key === 'm') document.getElementById('toggle-mask').click();
+  if (e.key === 'r') document.getElementById('toggle-roi').click();
+});
+
+// ── Initial state ─────────────────────────────────────────────────────────────
+setStatus('mp', 'idle');
+setStatus('onnx', 'idle');
+setStatus('cam', 'idle');
+
+// WASM path for ONNX Runtime
+ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/';
+</script>
+</body>
+</html>
