@@ -433,7 +433,7 @@ async function loop(){
     const dx=(tip.x-dip.x)*vid.videoWidth*scX;
     const dy=(tip.y-dip.y)*vid.videoHeight*scY;
     const nLen=Math.sqrt(dx*dx+dy*dy);
-    const roi=Math.max(nLen*3.2,38);
+    const roi=Math.max(nLen*1.5,25);
     const rx=Math.max(0,Math.round(cx-roi/2));
     const ry=Math.max(0,Math.round(cy-roi/2));
     const rw=Math.min(Math.round(roi),W-rx);
