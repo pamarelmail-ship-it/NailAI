@@ -215,6 +215,9 @@ async function loadM(file){
   document.getElementById('eb').style.display='none';setD('d-on','loading');
   try{
     const buf=await file.arrayBuffer();
+    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
+    ort.env.wasm.numThreads = 1;
+    ort.env.wasm.simd = true;
     sess=await ort.InferenceSession.create(buf,{executionProviders:['wasm'],graphOptimizationLevel:'all'});
     const mb=(file.size/1024/1024).toFixed(1);
     setD('d-on','active');nmasks.fill(null);toast('Model loaded · '+mb+' MB');
@@ -222,7 +225,7 @@ async function loadM(file){
   }catch(e){setD('d-on','error');showE('Failed: '+e.message);console.error(e);}
 }
 function rmM(){sess=null;nmasks.fill(null);setD('d-on','idle');document.getElementById('ma').outerHTML=`<div id="ma" class="mdrop"><input type="file" id="mf" accept=".onnx"><div class="di">◈</div><div class="dt"><strong>Drop .onnx file</strong><br>or tap to browse</div><div class="dh">DeepLabV3+ · 256×256 · ImageNet</div></div>`;setupDrop('ma','mf');}
-
+  
 async function startCam(f){
   if(st)st.getTracks().forEach(t=>t.stop());
   const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:f,width:{ideal:1280},height:{ideal:720}},audio:false});
