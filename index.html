@@ -24,8 +24,12 @@ header { flex-shrink:0; height:48px; display:flex; align-items:center; justify-c
 .d { width:6px; height:6px; border-radius:50%; background:#333; transition:background .3s; }
 .d.on { background:#4caf82; } .d.ld { background:var(--accent); animation:pulse 1s infinite; } .d.err { background:#e05a5a; }
 @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
-#content { flex:1; display:flex; overflow:hidden; min-height:0; }
-#cam-panel { position:relative; flex:1; background:#000; overflow:hidden; }
+#content { flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0; }
+#cam-panel { position:relative; width:100%; height:60vh; flex-shrink:0; background:#000; overflow:hidden; }
+@media (min-width:700px) {
+  #content { flex-direction:row; }
+  #cam-panel { width:auto; height:auto; flex:1; }
+}
 video { position:absolute; width:100%; height:100%; object-fit:cover; top:0; left:0; }
 canvas#cv { position:absolute; top:0; left:0; pointer-events:none; }
 #cam-loader { position:absolute; inset:0; z-index:5; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#000; gap:12px; }
@@ -40,8 +44,8 @@ canvas#cv { position:absolute; top:0; left:0; pointer-events:none; }
 #fps-el { position:absolute;top:8px;right:10px;font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.2);pointer-events:none; }
 #flip-btn { position:absolute;bottom:14px;right:14px;z-index:4;width:46px;height:46px;border-radius:50%;background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:20px;cursor:pointer;display:none;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px); }
 #flip-btn:active { transform:scale(.88); }
-aside { width:100%;background:var(--surface);border-top:1px solid var(--border);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:20px; }
-@media (min-width:700px) { aside { width:290px;border-top:none;border-left:1px solid var(--border); } }
+aside { width:100%;flex:1;background:var(--surface);border-top:1px solid var(--border);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:20px; }
+@media (min-width:700px) { aside { width:290px;flex:none;border-top:none;border-left:1px solid var(--border); } }
 .sec { padding:14px 14px 0; }
 .lbl { font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px; }
 .div { height:1px;background:var(--border);margin:12px 0 0; }
@@ -89,7 +93,7 @@ select{width:100%;background:var(--surface2);border:1px solid var(--border2);col
       <div class="dp"><div class="d" id="d-cm"></div><span>Cam</span></div>
     </div>
   </header>
-
+ 
   <div id="content">
     <div id="cam-panel">
       <div id="cam-loader"><div class="spin"></div><div class="loader-txt" id="ltxt">Press Start Camera</div></div>
@@ -100,7 +104,7 @@ select{width:100%;background:var(--surface2);border:1px solid var(--border2);col
       <div id="fps-el"></div>
       <button id="flip-btn">⇄</button>
     </div>
-
+ 
     <aside>
       <div class="sec">
         <div class="lbl" style="margin-top:14px;">Model (ONNX)</div>
@@ -112,14 +116,14 @@ select{width:100%;background:var(--surface2);border:1px solid var(--border2);col
         </div>
         <div class="ebox" id="eb"></div>
       </div>
-
+ 
       <div class="sec">
         <div class="div"></div>
         <div class="lbl" style="margin-top:12px;">Nail Color</div>
         <div class="pgrid" id="pal"></div>
         <div class="crow"><label>Custom</label><input type="color" id="cc" value="#ff2255"></div>
       </div>
-
+ 
       <div class="sec">
         <div class="div"></div>
         <div class="lbl" style="margin-top:12px;">Rendering</div>
@@ -138,7 +142,7 @@ select{width:100%;background:var(--surface2);border:1px solid var(--border2);col
           <option value="soft-light">Soft light</option>
         </select>
       </div>
-
+ 
       <div class="sec">
         <div class="div"></div>
         <div class="lbl" style="margin-top:12px;">Stats</div>
@@ -149,40 +153,40 @@ select{width:100%;background:var(--surface2);border:1px solid var(--border2);col
           <div class="sc"><div class="sn">Hands</div><div class="sv2" id="shands">—</div></div>
         </div>
       </div>
-
+ 
       <button class="sbtn" id="sbtn">Start Camera</button>
     </aside>
   </div>
 </div>
 <div class="tst" id="tst"></div>
-
+ 
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js"></script>
 <script>
 const MS=512, TIPS=[4,8,12,16,20], DIPS=[3,7,11,15,19];
 const COLS=['#ff2255','#ff6699','#ffaacc','#cc44ff','#7744ff','#ff6633','#ff9933','#ffcc22','#33ddaa','#2299ff','#cc2244','#1a1a1a'];
-
+ 
 let col=COLS[0], sess=null, lms=[], running=false, mirror=true, facing='user', st=null;
 let showLM=false, showDbg=false, nq=0, nmasks=new Array(5).fill(null);
 let fc=0, ft=performance.now();
-
+ 
 if(typeof ort!=='undefined'){
   ort.env.wasm.numThreads=1;
   ort.env.wasm.simd=true;
   ort.env.wasm.wasmPaths='https://unpkg.com/onnxruntime-web@1.18.0/dist/';
 }
-
+ 
 const vid=document.getElementById('vid');
 const cv=document.getElementById('cv');
 const ctx=cv.getContext('2d');
 const panel=document.getElementById('cam-panel');
-
+ 
 function setD(id,s){document.getElementById(id).className='d '+(s==='idle'?'':s==='active'?'on':s==='loading'?'ld':'err');}
 let tt;
 function toast(m,e=false){clearTimeout(tt);const t=document.getElementById('tst');t.textContent=m;t.className='tst show'+(e?' e':'');tt=setTimeout(()=>t.className='tst',3000);}
 function showE(m){const b=document.getElementById('eb');b.style.display='block';b.textContent='⚠ '+m;}
-
+ 
 function rpal(){
   const g=document.getElementById('pal');g.innerHTML='';
   COLS.forEach(c=>{const s=document.createElement('div');s.className='sw'+(c===col?' on':'');s.style.background=c;s.onclick=()=>{col=c;nmasks.fill(null);rpal();};g.appendChild(s);});
@@ -192,14 +196,14 @@ document.getElementById('cc').oninput=e=>{col=e.target.value;nmasks.fill(null);r
 document.getElementById('sop').oninput=e=>document.getElementById('vop').textContent=e.target.value+'%';
 document.getElementById('sth').oninput=e=>{document.getElementById('vth').textContent=(e.target.value/100).toFixed(2);nmasks.fill(null);};
 document.getElementById('sbl').oninput=e=>document.getElementById('vbl').textContent=e.target.value+'px';
-
+ 
 function tog(id,init,cb){const el=document.getElementById(id);if(init)el.classList.add('on');el.onclick=()=>{el.classList.toggle('on');cb(el.classList.contains('on'));};}
 tog('tlm',false,v=>showLM=v);
 tog('tdb',false,v=>showDbg=v);
 tog('tmi',true,v=>{mirror=v;applyM();nmasks.fill(null);});
 function applyM(){vid.style.transform=mirror?'scaleX(-1)':'none';cv.style.transform=mirror?'scaleX(-1)':'none';}
 applyM();
-
+ 
 function setupDrop(a,i){
   const ae=document.getElementById(a),ie=document.getElementById(i);
   if(!ae||!ie)return;
@@ -209,7 +213,7 @@ function setupDrop(a,i){
   ie.onchange=()=>{if(ie.files[0])loadM(ie.files[0]);};
 }
 setupDrop('ma','mf');
-
+ 
 async function loadM(file){
   if(!file.name.endsWith('.onnx')){showE('Select a .onnx file');return;}
   document.getElementById('eb').style.display='none';setD('d-on','loading');
@@ -240,12 +244,12 @@ async function startCam(f){
   await new Promise(r=>setTimeout(r,200));
   syncCV();
 }
-
+ 
 function syncCV(){
   const pw=panel.clientWidth,ph=panel.clientHeight;
   if(cv.width!==pw||cv.height!==ph){cv.width=pw;cv.height=ph;cv.style.width=pw+'px';cv.style.height=ph+'px';nmasks.fill(null);}
 }
-
+ 
 document.getElementById('flip-btn').onclick=async()=>{
   facing=facing==='user'?'environment':'user';
   mirror=facing==='user';
@@ -253,7 +257,7 @@ document.getElementById('flip-btn').onclick=async()=>{
   applyM();nmasks.fill(null);
   try{await startCam(facing);}catch(e){toast('Cannot switch camera',true);}
 };
-
+ 
 document.getElementById('sbtn').onclick=async()=>{
   if(running)return;
   const btn=document.getElementById('sbtn');
@@ -276,7 +280,7 @@ document.getElementById('sbtn').onclick=async()=>{
   window.addEventListener('resize',()=>{syncCV();nmasks.fill(null);});
   requestAnimationFrame(loop);
 };
-
+ 
 async function loop(){
   if(!running)return;
   requestAnimationFrame(loop);
@@ -287,26 +291,26 @@ async function loop(){
   ctx.clearRect(0,0,W,H);
   if(window._mp){try{await window._mp.send({image:vid});}catch(e){}}
   if(!lms.length){document.getElementById('snails').textContent='—';return;}
-
+ 
   const lm=lms[0];
   const op=document.getElementById('sop').value/100;
   const thr=document.getElementById('sth').value/100;
   const bl=parseInt(document.getElementById('sbl').value);
   const bmod=document.getElementById('bm').value;
-
+ 
   const vAR=vid.videoWidth/vid.videoHeight;
   const pAR=W/H;
   let scX,scY,offX=0,offY=0;
   if(vAR>pAR){scY=H/vid.videoHeight;scX=scY;offX=(W-vid.videoWidth*scX)/2;}
   else{scX=W/vid.videoWidth;scY=scX;offY=(H-vid.videoHeight*scY)/2;}
-
+ 
   if(showLM&&typeof drawConnectors!=='undefined'){
     ctx.save();ctx.translate(offX,offY);ctx.scale(scX,scY);
     drawConnectors(ctx,lm,HAND_CONNECTIONS,{color:'rgba(255,255,255,.2)',lineWidth:1/scX});
     drawLandmarks(ctx,lm,{color:'rgba(201,169,110,.6)',radius:3/scX});
     ctx.restore();
   }
-
+ 
   const i=nq;nq=(nq+1)%5;
   const tip=lm[TIPS[i]],dip=lm[DIPS[i]];
   if(tip&&dip){
@@ -320,7 +324,7 @@ async function loop(){
     const ry=Math.max(0,Math.round(cy-roi/2));
     const rw=Math.min(Math.round(roi),W-rx);
     const rh=Math.min(Math.round(roi),H-ry);
-
+ 
     if(rw>=16&&rh>=16){
       if(sess){
         try{
@@ -335,7 +339,7 @@ async function loop(){
       }
     }
   }
-
+ 
   let nc=0;
   for(let j=0;j<5;j++){
     const m=nmasks[j];if(!m)continue;nc++;
@@ -344,7 +348,7 @@ async function loop(){
   }
   document.getElementById('snails').textContent=nc;
 }
-
+ 
 const _off=document.createElement('canvas').getContext('2d');
 async function runOnnx(src,vx,vy,vw,vh,thr){
   _off.canvas.width=MS;_off.canvas.height=MS;
@@ -362,7 +366,7 @@ async function runOnnx(src,vx,vy,vw,vh,thr){
   const t=res[sess.outputNames[0]],d=t.data,dims=t.dims;
   const OH=dims[dims.length-2],OW=dims[dims.length-1];
   const sig=v=>1/(1+Math.exp(-v)),ns=d[0]<-.5||d[0]>1.01;
-
+ 
   // ── KEY FIX: build RGBA canvas where mask = alpha channel ──────────────────
   const mc=document.createElement('canvas');mc.width=OW;mc.height=OH;
   const mctx=mc.getContext('2d');
@@ -383,7 +387,7 @@ async function runOnnx(src,vx,vy,vw,vh,thr){
   mctx.putImageData(img,0,0);
   return mc;
 }
-
+ 
 // ── Overlay: draw colored mask with correct alpha ──────────────────────────
 function drawMask(mc,rx,ry,rw,rh,op,bl,bmod){
   if(showDbg){
@@ -405,7 +409,7 @@ function drawMask(mc,rx,ry,rw,rh,op,bl,bmod){
   }
   ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
 }
-
+ 
 function drawPH(cx,cy,nLen,dx,dy,op,bm){
   const r=parseInt(col.slice(1,3),16),g=parseInt(col.slice(3,5),16),b=parseInt(col.slice(5,7),16);
   ctx.save();ctx.globalAlpha=op*.8;ctx.globalCompositeOperation=bm;
@@ -414,7 +418,7 @@ function drawPH(cx,cy,nLen,dx,dy,op,bm){
   gr.addColorStop(0,`rgba(${r},${g},${b},1)`);gr.addColorStop(.7,`rgba(${r},${g},${b},.7)`);gr.addColorStop(1,`rgba(${r},${g},${b},0)`);
   ctx.beginPath();ctx.ellipse(0,0,nLen*.3,nLen*.5,0,0,Math.PI*2);ctx.fillStyle=gr;ctx.fill();ctx.restore();
 }
-
+ 
 setD('d-mp','idle');setD('d-on','idle');setD('d-cm','idle');
 </script>
 </body>
